@@ -5,11 +5,12 @@ from datetime import datetime, timedelta
 import time
 import requests
 import io
+import urllib.parse
 
 # --- SETUP ---
 st.set_page_config(page_title="Persian News Pro", page_icon="📰", layout="wide")
 
-# CSS (Vit text för rubriker, RTL, snyggare layout)
+# CSS (Håller rubrikerna vita och läsbara)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
@@ -24,9 +25,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- NYHETSKÄLLOR (Med Google News Proxy för Iran Intl) ---
+# --- NYHETSKÄLLOR (Nu med specifik persisk sökning för Iran Intl) ---
+# Vi använder en sökning på själva namnet i persiska tecken för att garantera språket
+iran_intl_query = urllib.parse.quote("ایران اینترنشنال")
 SOURCES = {
-    "Iran International": "https://news.google.com/rss/search?q=site:iranintl.com&hl=fa&gl=IR&ceid=IR:fa",
+    "Iran International": f"https://news.google.com/rss/search?q={iran_intl_query}+site:iranintl.com&hl=fa&gl=IR&ceid=IR:fa",
     "BBC Persian": "https://www.bbc.com/persian/index.xml",
     "Radio Farda": "https://www.radiofarda.com/api/z-$qppe_iqm",
     "DW Persian": "https://rss.dw.com/rdf/rss-fa-all",
@@ -37,7 +40,7 @@ SOURCES = {
 @st.cache_data(ttl=300)
 def fetch_data():
     entries = []
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     
     for name, url in SOURCES.items():
         try:
@@ -47,16 +50,15 @@ def fetch_data():
                 feed = feedparser.parse(raw_data)
                 
                 for e in feed.entries:
-                    # Datum-hantering
                     if hasattr(e, 'published_parsed'):
                         dt = datetime.fromtimestamp(time.mktime(e.published_parsed))
                     else:
                         dt = datetime.now()
                     
-                    # Rensa titeln för Iran Intl (Google News lägger till källan i slutet av titeln)
+                    # Rensa bort Google News suffixet " - Källa"
                     title = e.title
                     if " - " in title:
-                        title = title.split(" - ")[0]
+                        title = title.rsplit(" - ", 1)[0]
                     
                     entries.append({"title": title, "link": e.link, "source": name, "date": dt})
         except:
@@ -74,7 +76,6 @@ with st.sidebar:
 df = fetch_data()
 
 if not df.empty:
-    # Tids-logik (justerat för UTC om servrarna ligger utomlands)
     now = datetime.now()
     if "۱ ساعت" in time_choice: threshold = now - timedelta(hours=1)
     elif "۲۴ ساعت" in time_choice: threshold = now - timedelta(days=1)
@@ -84,7 +85,7 @@ if not df.empty:
     df_filtered = df[mask].sort_values(by='date', ascending=False)
 
     if df_filtered.empty:
-        st.info("خبri یافت نشد در این بازه زمانی (Inga nyheter inom valt tidsintervall).")
+        st.info("خبری یافت نشد.")
     else:
         for _, row in df_filtered.iterrows():
             st.markdown(f"""
@@ -98,4 +99,4 @@ if not df.empty:
                 </div>
             """, unsafe_allow_html=True)
 else:
-    st.error("خطا در بارگذاری اخبار. لطفاً صفحه را رفرش کنید.")
+    st.error("خطا در بارگذاری اخبار.")
