@@ -9,7 +9,7 @@ import io
 # --- SETUP ---
 st.set_page_config(page_title="Persian News Pro", page_icon="📰", layout="wide")
 
-# CSS (Vit text för rubriker, RTL, mörkt tema)
+# CSS (Vit text för rubriker, RTL, snyggare layout)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
@@ -24,9 +24,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- NYHETSKÄLLOR ---
+# --- NYHETSKÄLLOR (Med Google News Proxy för Iran Intl) ---
 SOURCES = {
-    "Iran International": "https://www.iranintl.com/rss/all",
+    "Iran International": "https://news.google.com/rss/search?q=site:iranintl.com&hl=fa&gl=IR&ceid=IR:fa",
     "BBC Persian": "https://www.bbc.com/persian/index.xml",
     "Radio Farda": "https://www.radiofarda.com/api/z-$qppe_iqm",
     "DW Persian": "https://rss.dw.com/rdf/rss-fa-all",
@@ -37,26 +37,29 @@ SOURCES = {
 @st.cache_data(ttl=300)
 def fetch_data():
     entries = []
-    # Vi lägger till en "User-Agent" för att se ut som en riktig webbläsare
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     
     for name, url in SOURCES.items():
         try:
-            # Vi hämtar datan med requests först för att kringgå blockeringar
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
-                # Vi skapar en "falsk" fil i minnet som feedparser kan läsa
                 raw_data = io.BytesIO(response.content)
                 feed = feedparser.parse(raw_data)
                 
                 for e in feed.entries:
+                    # Datum-hantering
                     if hasattr(e, 'published_parsed'):
                         dt = datetime.fromtimestamp(time.mktime(e.published_parsed))
                     else:
                         dt = datetime.now()
                     
-                    entries.append({"title": e.title, "link": e.link, "source": name, "date": dt})
-        except Exception as e:
+                    # Rensa titeln för Iran Intl (Google News lägger till källan i slutet av titeln)
+                    title = e.title
+                    if " - " in title:
+                        title = title.split(" - ")[0]
+                    
+                    entries.append({"title": title, "link": e.link, "source": name, "date": dt})
+        except:
             continue
     return pd.DataFrame(entries)
 
@@ -71,6 +74,7 @@ with st.sidebar:
 df = fetch_data()
 
 if not df.empty:
+    # Tids-logik (justerat för UTC om servrarna ligger utomlands)
     now = datetime.now()
     if "۱ ساعت" in time_choice: threshold = now - timedelta(hours=1)
     elif "۲۴ ساعت" in time_choice: threshold = now - timedelta(days=1)
@@ -80,7 +84,7 @@ if not df.empty:
     df_filtered = df[mask].sort_values(by='date', ascending=False)
 
     if df_filtered.empty:
-        st.info("خبری یافت نشد.")
+        st.info("خبri یافت نشد در این بازه زمانی (Inga nyheter inom valt tidsintervall).")
     else:
         for _, row in df_filtered.iterrows():
             st.markdown(f"""
@@ -94,4 +98,4 @@ if not df.empty:
                 </div>
             """, unsafe_allow_html=True)
 else:
-    st.error("خطا در بارگذاری اخبار. لطفاً صفحه را رفرsh کنید.")
+    st.error("خطا در بارگذاری اخبار. لطفاً صفحه را رفرش کنید.")
