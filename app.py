@@ -7,17 +7,52 @@ import time
 # --- SETUP ---
 st.set_page_config(page_title="Persian News", page_icon="📰", layout="wide")
 
-# CSS för mobilanpassning och RTL
+# CSS för mobilanpassning, RTL och FÄRGKORRIGERING
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Vazirmatn', sans-serif; direction: rtl; text-align: right; }
-    .news-card {
-        background: #1e2129; padding: 15px; border-radius: 12px;
-        border-right: 5px solid #ff4b2b; margin-bottom: 15px;
+    
+    /* Grundläggande font och RTL */
+    html, body, [class*="css"] { 
+        font-family: 'Vazirmatn', sans-serif; 
+        direction: rtl; 
+        text-align: right; 
     }
-    .source-tag { background: #333; color: #ff4b2b; padding: 2px 8px; border-radius: 5px; font-size: 0.8rem; }
-    a { color: #4dabff !important; text-decoration: none; font-weight: bold; }
+    
+    /* Själva nyhetskortet */
+    .news-card {
+        background: #1e2129; 
+        padding: 15px; 
+        border-radius: 12px;
+        border-right: 5px solid #ff4b2b; 
+        margin-bottom: 15px;
+    }
+    
+    /* ⚠️ FIX FÖR RUBRIKERNA: Tvinga vit färg ⚠️ */
+    .news-card h3 { 
+        color: #ffffff !important; 
+        margin: 10px 0; 
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    
+    /* Källan (röd text på mörkgrå bakgrund) */
+    .source-tag { 
+        background: #333; 
+        color: #ff4b2b; 
+        padding: 2px 8px; 
+        border-radius: 5px; 
+        font-size: 0.8rem; 
+        font-weight: bold;
+    }
+    
+    /* Länken (blå) */
+    a { 
+        color: #4dabff !important; 
+        text-decoration: none; 
+        font-weight: bold; 
+    }
+    
     /* Fix för mobil-menyn */
     .stSidebar { direction: rtl; }
     </style>
@@ -64,14 +99,17 @@ df = df[(df['date'] >= threshold) & (df['source'].isin(selected_src))]
 
 # Visa nyheter
 if df.empty:
-    st.info("خبری یافت نشd (Inga nyheter hittades).")
+    st.info("خبری یافت نشد (Inga nyheter hittades).")
 else:
     for _, row in df.sort_values(by='date', ascending=False).iterrows():
+        # Här skapar vi HTML-koden för varje nyhet
         st.markdown(f"""
             <div class="news-card">
-                <span class="source-tag">{row['source']}</span> 
-                <span style="color:#888; font-size:0.8rem;">{row['date'].strftime('%H:%M')}</span>
-                <h3 style="margin:10px 0; font-size:1.1rem;">{row['title']}</h3>
+                <div>
+                    <span class="source-tag">{row['source']}</span> 
+                    <span style="color:#aaa; font-size:0.8rem; margin-right: 10px;">{row['date'].strftime('%H:%M')}</span>
+                </div>
+                <h3>{row['title']}</h3>
                 <a href="{row['link']}" target="_blank">مطالعه خبر ⬅️</a>
             </div>
         """, unsafe_allow_html=True)
