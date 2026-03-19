@@ -3,57 +3,28 @@ import feedparser
 import pandas as pd
 from datetime import datetime, timedelta
 import time
+import requests
+import io
 
 # --- SETUP ---
 st.set_page_config(page_title="Persian News Pro", page_icon="📰", layout="wide")
 
-# CSS för mobilanpassning, RTL och vit text på rubriker
+# CSS (Vit text för rubriker, RTL, mörkt tema)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
-    
-    html, body, [class*="css"] { 
-        font-family: 'Vazirmatn', sans-serif; 
-        direction: rtl; 
-        text-align: right; 
-    }
-    
+    html, body, [class*="css"] { font-family: 'Vazirmatn', sans-serif; direction: rtl; text-align: right; }
     .news-card {
-        background: #1e2129; 
-        padding: 18px; 
-        border-radius: 12px;
-        border-right: 6px solid #ff4b2b; 
-        margin-bottom: 15px;
+        background: #1e2129; padding: 18px; border-radius: 12px;
+        border-right: 6px solid #ff4b2b; margin-bottom: 15px;
     }
-    
-    .news-card h3 { 
-        color: #ffffff !important; 
-        margin: 10px 0; 
-        font-size: 1.15rem;
-        font-weight: 700;
-        line-height: 1.6;
-    }
-    
-    .source-tag { 
-        background: #333; 
-        color: #ff4b2b; 
-        padding: 3px 10px; 
-        border-radius: 6px; 
-        font-size: 0.8rem; 
-        font-weight: bold;
-    }
-    
-    a { 
-        color: #4dabff !important; 
-        text-decoration: none; 
-        font-weight: bold; 
-    }
-    
-    .stSidebar { direction: rtl; }
+    .news-card h3 { color: #ffffff !important; margin: 10px 0; font-size: 1.15rem; font-weight: 700; line-height: 1.6; }
+    .source-tag { background: #333; color: #ff4b2b; padding: 3px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; }
+    a { color: #4dabff !important; text-decoration: none; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- NYHETSKÄLLOR (Nu med Iran International) ---
+# --- NYHETSKÄLLOR ---
 SOURCES = {
     "Iran International": "https://www.iranintl.com/rss/all",
     "BBC Persian": "https://www.bbc.com/persian/index.xml",
@@ -66,23 +37,26 @@ SOURCES = {
 @st.cache_data(ttl=300)
 def fetch_data():
     entries = []
+    # Vi lägger till en "User-Agent" för att se ut som en riktig webbläsare
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    
     for name, url in SOURCES.items():
         try:
-            feed = feedparser.parse(url)
-            for e in feed.entries:
-                # Parsar datumet säkert
-                if hasattr(e, 'published_parsed'):
-                    dt = datetime.fromtimestamp(time.mktime(e.published_parsed))
-                else:
-                    dt = datetime.now()
+            # Vi hämtar datan med requests först för att kringgå blockeringar
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                # Vi skapar en "falsk" fil i minnet som feedparser kan läsa
+                raw_data = io.BytesIO(response.content)
+                feed = feedparser.parse(raw_data)
                 
-                entries.append({
-                    "title": e.title,
-                    "link": e.link,
-                    "source": name,
-                    "date": dt
-                })
-        except:
+                for e in feed.entries:
+                    if hasattr(e, 'published_parsed'):
+                        dt = datetime.fromtimestamp(time.mktime(e.published_parsed))
+                    else:
+                        dt = datetime.now()
+                    
+                    entries.append({"title": e.title, "link": e.link, "source": name, "date": dt})
+        except Exception as e:
             continue
     return pd.DataFrame(entries)
 
@@ -92,10 +66,8 @@ st.title("Persian News 📰")
 with st.sidebar:
     st.header("تنظیمات (Filter)")
     time_choice = st.radio("بازه زمانی (Tid):", ["۱ ساعت اخیر", "۲۴ ساعت اخیر", "۷ روز اخیر"], index=1)
-    # Här kan du välja vilka källor som ska visas
     selected_src = st.multiselect("منابع (Källor):", list(SOURCES.keys()), default=list(SOURCES.keys()))
 
-# Hämta data
 df = fetch_data()
 
 if not df.empty:
@@ -104,7 +76,6 @@ if not df.empty:
     elif "۲۴ ساعت" in time_choice: threshold = now - timedelta(days=1)
     else: threshold = now - timedelta(days=7)
 
-    # Filtrera på tid och källa
     mask = (df['date'] >= threshold) & (df['source'].isin(selected_src))
     df_filtered = df[mask].sort_values(by='date', ascending=False)
 
@@ -123,4 +94,4 @@ if not df.empty:
                 </div>
             """, unsafe_allow_html=True)
 else:
-    st.error("خطا در بارگذاری اخبار. لطفاً صفحه را رفرش کنید.")
+    st.error("خطا در بارگذاری اخبار. لطفاً صفحه را رفرsh کنید.")
